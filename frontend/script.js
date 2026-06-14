@@ -45,6 +45,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     processBtn.addEventListener('click', async () => {
+        const songNameInput = document.getElementById('song-name').value.trim();
+        if (!songNameInput) {
+            alert('Please enter a Song Name to create a project folder.');
+            return;
+        }
         if (!selectedFile) return;
 
         // UI State
@@ -57,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('stem', stemSelect.value);
+        formData.append('song_name', songNameInput);
 
         try {
             const response = await fetch('/api/process', {

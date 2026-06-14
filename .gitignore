@@ -39,6 +39,7 @@ piano_transcription_inference_data/
 *.ogg
 
 # Project Specific Working Directories
+projects/
 temp_separated/
 output_midi/
 

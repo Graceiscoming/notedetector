@@ -1,6 +1,24 @@
 import os
 import shutil
+import winreg
 from pathlib import Path
+
+def refresh_path_from_registry():
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Environment', 0, winreg.KEY_READ) as key:
+            user_path, _ = winreg.QueryValueEx(key, 'Path')
+    except FileNotFoundError:
+        user_path = ""
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 0, winreg.KEY_READ) as key:
+            machine_path, _ = winreg.QueryValueEx(key, 'Path')
+    except FileNotFoundError:
+        machine_path = ""
+    os.environ['PATH'] = f"{machine_path};{user_path};{os.environ.get('PATH', '')}"
+
+# Refresh PATH before loading modules so ffmpeg is found
+refresh_path_from_registry()
+
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,21 +43,19 @@ app.add_middleware(
 )
 
 # Ensure directories exist
-os.makedirs("input_audio", exist_ok=True)
-os.makedirs("temp_separated", exist_ok=True)
-os.makedirs("output_midi", exist_ok=True)
+os.makedirs("projects", exist_ok=True)
 os.makedirs("frontend", exist_ok=True)
 
 # Mount static frontend
 app.mount("/static", StaticFiles(directory="frontend"), name="frontend")
 # Mount output to allow downloading
-app.mount("/download", StaticFiles(directory="output_midi"), name="download")
+app.mount("/download", StaticFiles(directory="projects"), name="download")
 
 @app.get("/")
 def read_index():
     return FileResponse("frontend/index.html")
 
-def run_pipeline(input_audio: str, stem_choice: str):
+def run_pipeline(input_audio: str, stem_choice: str, song_dir: str):
     with open("config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
     
@@ -51,7 +67,9 @@ def run_pipeline(input_audio: str, stem_choice: str):
     
     # 2. Source Separation
     model_name = config.get("source_separation", {}).get("model", "htdemucs_ft.yaml")
-    separated_paths = separate_source(input_audio, model_name, "temp_separated")
+    temp_dir = os.path.join(song_dir, "temp_separated")
+    os.makedirs(temp_dir, exist_ok=True)
+    separated_paths = separate_source(input_audio, model_name, temp_dir)
     
     target_stem_path = None
     for path in separated_paths:
@@ -73,10 +91,13 @@ def run_pipeline(input_audio: str, stem_choice: str):
     filtered_notes = filter_and_snap_notes(raw_notes, detected_key, config)
 
     # 6. Export
+    out_dir = os.path.join(song_dir, "output")
+    os.makedirs(out_dir, exist_ok=True)
+    
     midi_filename = f"{basename}_{stem_choice}_snapped.mid"
     text_filename = f"{basename}_{stem_choice}_notes.txt"
-    midi_output = f"output_midi/{midi_filename}"
-    text_output = f"output_midi/{text_filename}"
+    midi_output = os.path.join(out_dir, midi_filename)
+    text_output = os.path.join(out_dir, text_filename)
     
     export_to_midi(filtered_notes, midi_output)
     export_to_text(filtered_notes, text_output)
@@ -87,22 +108,30 @@ def run_pipeline(input_audio: str, stem_choice: str):
     return midi_filename, text_filename
 
 @app.post("/api/process")
-async def process_audio(file: UploadFile = File(...), stem: str = Form(...)):
+async def process_audio(file: UploadFile = File(...), stem: str = Form(...), song_name: str = Form(...)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded")
         
-    file_path = f"input_audio/{file.filename}"
+    # Create project directory
+    safe_song_name = "".join([c for c in song_name if c.isalpha() or c.isdigit() or c==' ']).rstrip().replace(" ", "_")
+    if not safe_song_name:
+        safe_song_name = "untitled_project"
+        
+    song_dir = f"projects/{safe_song_name}"
+    os.makedirs(song_dir, exist_ok=True)
+        
+    file_path = f"{song_dir}/{file.filename}"
     
     # Save uploaded file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
     try:
-        midi_file, text_file = run_pipeline(file_path, stem)
+        midi_file, text_file = run_pipeline(file_path, stem, song_dir)
         return {
             "status": "success",
-            "midi_url": f"/download/{midi_file}",
-            "text_url": f"/download/{text_file}"
+            "midi_url": f"/download/{safe_song_name}/output/{midi_file}",
+            "text_url": f"/download/{safe_song_name}/output/{text_file}"
         }
     except Exception as e:
         cleanup_vram() # Ensure cleanup on error
