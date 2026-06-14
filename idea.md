@@ -120,3 +120,47 @@ notedee/
 ```
 
 > **หมายเหตุสำคัญ:** ชื่อไฟล์ `audio_separator.py` จะ **ชนชื่อกับ library `audio-separator`** ที่ติดตั้งไว้ทำให้ Import Error — เปลี่ยนเป็น `source_separator.py` เสมอ
+
+
+ ลำดับการพัฒนา (Phases)
+Phase 1: Environment Setup & Audio Ingestion (วางรากฐานการรับไฟล์)
+เป้าหมาย: โปรแกรมสามารถรับไฟล์เสียงเข้ามา แปลงฟอร์แมต และพร้อมส่งต่อให้ AI ได้
+
+ติดตั้ง Libraries: ทดสอบการติดตั้ง requirements.txt ให้มั่นใจว่า PyTorch ใช้งาน GPU (CUDA) ได้จริง
+[F1] Audio Ingestion (audio_ingest.py): เขียนฟังก์ชันโหลดไฟล์ด้วย soundfile และทำ Resampling ด้วย torchaudio.transforms.Resample บน GPU
+การทดสอบ: ลองรันโหลดไฟล์ .mp3/.wav จริงๆ เพื่อดูว่าโปรแกรมโหลดได้เร็วและไม่มี Error
+Phase 2: Source Separation & VRAM Management (ระบบสกัดเสียงและคุมหน่วยความจำ)
+เป้าหมาย: สามารถสกัดเสียงร้องหรือเสียงเปียโนออกมาเป็นไฟล์เสียงเดี่ยวได้ โดยที่การ์ดจอไม่แครช
+
+[Utils] Memory Manager (memory_manager.py): เขียนระบบเคลียร์ VRAM (del, empty_cache, gc.collect) ให้พร้อมใช้งาน
+[F2] Source Separator (source_separator.py): นำ audio-separator มาเชื่อมต่อ รองรับโมเดล BS-RoFormer และ MDX23C/htdemucs
+การทดสอบ: ดึงเสียงจาก Phase 1 มาสกัดเป็นเสียงร้องล้วนๆ และตรวจสอบ VRAM usage ว่าอยู่ในเกณฑ์ 8GB
+Phase 3: Key Detection (ระบบวิเคราะห์สเกลเพลง)
+เป้าหมาย: โปรแกรมสามารถวิเคราะห์ได้ว่าเพลงนั้นอยู่ใน Key อะไร เพื่อนำไปใช้กรองโน้ตในภายหลัง
+
+[F3] Key Detector (key_detector.py): สร้างระบบ Voting Ensemble (Krumhansl-Schmuckler, Temperley, Chroma Energy) โดยใช้ librosa
+ระบบ Manual Override: ดึงค่า Override จาก config.yaml หากผู้ใช้ระบุ Key มาเอง
+การทดสอบ: นำไฟล์เพลงที่รู้ Key อยู่แล้วมาทดสอบความแม่นยำของระบบ Auto-Detect
+Phase 4: Pitch Tracking & Basic MIDI (แกะโน้ตและสร้าง MIDI เบื้องต้น)
+เป้าหมาย: ใช้ AI แกะโน้ตจากเสียงที่แยกมาแล้ว และเซฟเป็นไฟล์ .mid ได้
+
+[F4] Pitch Tracker (pitch_tracker.py):
+เชื่อมต่อ torchcrepe สำหรับเสียงร้อง (Monophonic)
+เชื่อมต่อ piano_transcription_inference สำหรับชิ้นดนตรี (Polyphonic)
+[F6] MIDI Exporter (midi_exporter.py): นำค่า Pitch/Onset/Offset มาสร้างไฟล์ .mid ด้วย pretty_midi
+การทดสอบ: สร้างไฟล์ MIDI ดิบ (ยังไม่กรองโน้ตขยะ) เพื่อดูว่า AI แกะความถี่ออกมาได้ตรงกับเสียงจริงไหม
+Phase 5: Intelligent Pitch Snapping & Filtering (ระบบเวทมนตร์กรองโน้ตขยะ) 🌟 จุดสำคัญ
+เป้าหมาย: ทำให้ไฟล์ MIDI สะอาด เป๊ะตามสเกล ไม่มีโน้ตสั้นๆ หรือโน้ตขยะกวนใจ
+
+[F5] Pitch Filter (pitch_filter.py):
+นำ Key จาก Phase 3 มาสร้างตารางตีกรอบ (Allowed Notes)
+ทำ Median Filter กรองความถี่ที่แกว่ง
+จัดการแบ่งและเชื่อมโน้ต (Min Duration 0.08s, Merge Gap 0.05s)
+Smart Snap (ถ้าระยะห่าง <= 50 cents ให้ดึงเข้าสเกล, ถ้า > 50 cents ให้ลบทิ้ง)
+การทดสอบ: นำเสียงร้องมาแกะ และเปรียบเทียบไฟล์ MIDI ระหว่าง "ก่อนกรอง" (Phase 4) และ "หลังกรอง" (Phase 5)
+Phase 6: E2E Pipeline Integration & Polish (ประกอบร่างและขัดเกลา)
+เป้าหมาย: รวมทุกอย่างเข้าด้วยกันที่ main.py และปรับจูนความแม่นยำ
+
+Main Pipeline (main.py): ประกอบ F1 -> F2 -> F3 -> F4 -> F5 -> F6 ให้รันต่อเนื่องในคลิกเดียว
+การทดสอบจริง: โยนไฟล์เพลงเต็มเข้ามา 1 เพลง แล้วรอรับไฟล์ MIDI ที่ใช้งานได้จริงตอนจบ
+Fine-Tuning: ปรับแก้ค่า Thresholds ใน config.yaml จากผลลัพธ์การทดลองจริง
