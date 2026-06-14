@@ -50,6 +50,11 @@ def main():
     # Returns paths to the separated files
     os.makedirs("temp_separated", exist_ok=True)
     model_name = config.get("source_separation", {}).get("model", "htdemucs_ft.yaml")
+    
+    if stem_choice == "Vocals":
+        print("[F2] Vocals selected! Switching to advanced BS-RoFormer model.")
+        model_name = "model_bs_roformer_ep_317_sdr_12.9755.ckpt"
+        
     separated_paths = separate_source(input_audio, model_name, "temp_separated")
     
     # Find the requested stem

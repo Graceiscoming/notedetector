@@ -67,6 +67,10 @@ def run_pipeline(input_audio: str, stem_choice: str, song_dir: str):
     
     # 2. Source Separation
     model_name = config.get("source_separation", {}).get("model", "htdemucs_ft.yaml")
+    if stem_choice == "Vocals":
+        print("[F2] Vocals selected! Switching to advanced BS-RoFormer model.")
+        model_name = "model_bs_roformer_ep_317_sdr_12.9755.ckpt"
+        
     temp_dir = os.path.join(song_dir, "temp_separated")
     os.makedirs(temp_dir, exist_ok=True)
     separated_paths = separate_source(input_audio, model_name, temp_dir)
