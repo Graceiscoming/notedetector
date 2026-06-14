@@ -48,24 +48,43 @@ def snap_pitch_to_scale(pitch, valid_pitch_classes):
             
     return best_pitch
 
-def filter_and_snap_notes(notes_data, key_string, config):
+def filter_and_snap_notes(notes_data, detected_keys, config):
     """
-    Snaps notes to the given key and filters out overly short notes.
+    Snaps notes to the given key(s) and filters out overly short notes.
+    detected_keys can be a single key string, or a list of time-windowed keys.
     """
     min_duration = config.get("pitch_tracking", {}).get("min_note_duration", 0.05)
     
-    valid_pitch_classes = get_scale_notes(key_string)
-    print(f"[F5] Snapping notes to scale: {key_string}")
+    print(f"[F5] Snapping notes to detected keys (Modulation Support)...")
     
     filtered_notes = []
     snapped_count = 0
     filtered_count = 0
+    
+    is_list = isinstance(detected_keys, list)
+    global_valid_classes = get_scale_notes(detected_keys) if not is_list else None
     
     for note in notes_data:
         duration = note['end'] - note['start']
         if duration < min_duration:
             filtered_count += 1
             continue
+            
+        midpoint = (note['start'] + note['end']) / 2.0
+        
+        # Find which key window this note falls into
+        if is_list and len(detected_keys) > 0:
+            current_key_str = detected_keys[0]["key"]
+            for kw in detected_keys:
+                if kw["start"] <= midpoint < kw["end"]:
+                    current_key_str = kw["key"]
+                    break
+            if midpoint >= detected_keys[-1]["end"]:
+                current_key_str = detected_keys[-1]["key"]
+                
+            valid_pitch_classes = get_scale_notes(current_key_str)
+        else:
+            valid_pitch_classes = global_valid_classes
             
         original_pitch = note['pitch']
         snapped_pitch = snap_pitch_to_scale(original_pitch, valid_pitch_classes)

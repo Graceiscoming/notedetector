@@ -42,31 +42,50 @@ def estimate_key(chroma_vector, major_profile, minor_profile):
     else:
         return f"{PITCH_CLASSES[max_minor_idx]}_Minor"
 
-def detect_key(audio_path, config):
+def detect_keys_over_time(audio_path, config):
     """
-    Detects the key of the given audio using a voting ensemble, or returns the override key.
+    Detects the key of the given audio using a sliding window to catch modulations.
     """
     target_key = config.get("key_detection", {}).get("target_key", "AUTO")
     if target_key != "AUTO":
         print(f"[F3] Manual Key Override activated: {target_key}")
-        return target_key
+        return [{"start": 0.0, "end": float('inf'), "key": target_key}]
         
-    print(f"[F3] Auto-detecting key for {audio_path}...")
+    print(f"[F3] Auto-detecting key modulations for {audio_path}...")
     y, sr = librosa.load(audio_path, sr=22050)
     chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
-    chroma_vector = np.sum(chroma, axis=1) # Sum energy over time
     
-    # Voting methods
-    key_ks = estimate_key(chroma_vector, KS_MAJOR, KS_MINOR)
-    key_temp = estimate_key(chroma_vector, TEMP_MAJOR, TEMP_MINOR)
-    key_bin = estimate_key(chroma_vector, BIN_MAJOR, BIN_MINOR)
-    
-    votes = [key_ks, key_temp, key_bin]
-    print(f"[F3] Key Votes -> KS: {key_ks}, Temperley: {key_temp}, Energy: {key_bin}")
+    # chromagram shape is (12, frames)
+    # Frame duration is approx hop_length/sr = 512/22050 = 0.02322 seconds
+    frame_duration = 512.0 / sr
+
+    window_seconds = config.get("key_detection", {}).get("window_seconds", 10.0)
+    frames_per_window = int(window_seconds / frame_duration)
+
+    keys_over_time = []
+    total_frames = chroma.shape[1]
     
     from collections import Counter
-    vote_counts = Counter(votes)
-    final_key = vote_counts.most_common(1)[0][0]
-    
-    print(f"[F3] Final Detected Key: {final_key}")
-    return final_key
+
+    for start_frame in range(0, total_frames, frames_per_window):
+        end_frame = min(start_frame + frames_per_window, total_frames)
+        window_chroma = chroma[:, start_frame:end_frame]
+        chroma_vector = np.sum(window_chroma, axis=1)
+
+        key_ks = estimate_key(chroma_vector, KS_MAJOR, KS_MINOR)
+        key_temp = estimate_key(chroma_vector, TEMP_MAJOR, TEMP_MINOR)
+        key_bin = estimate_key(chroma_vector, BIN_MAJOR, BIN_MINOR)
+        
+        votes = [key_ks, key_temp, key_bin]
+        vote_counts = Counter(votes)
+        final_key = vote_counts.most_common(1)[0][0]
+
+        start_time = start_frame * frame_duration
+        end_time = end_frame * frame_duration
+        keys_over_time.append({
+            "start": float(start_time),
+            "end": float(end_time),
+            "key": final_key
+        })
+
+    return keys_over_time

@@ -27,7 +27,7 @@ import yaml
 
 # Import pipeline modules
 from src.source_separator import separate_source
-from src.key_detector import detect_key
+from src.key_detector import detect_keys_over_time
 from src.pitch_tracker import track_pitch
 from src.pitch_filter import filter_and_snap_notes
 from src.midi_exporter import export_to_midi, export_to_text
@@ -85,7 +85,7 @@ def run_pipeline(input_audio: str, stem_choice: str, song_dir: str):
         raise Exception(f"Could not find separated stem for '{stem_choice}'")
 
     # 3. Key Detection
-    detected_key = detect_key(input_audio, config)
+    detected_keys = detect_keys_over_time(input_audio, config)
 
     # 4. Pitch Tracking
     tracking_mode = "mono" if stem_choice in ["Vocals", "Bass"] else "poly"
@@ -93,7 +93,7 @@ def run_pipeline(input_audio: str, stem_choice: str, song_dir: str):
     raw_notes = tracking_result["notes"]
 
     # 5. Filtering
-    filtered_notes = filter_and_snap_notes(raw_notes, detected_key, config)
+    filtered_notes = filter_and_snap_notes(raw_notes, detected_keys, config)
 
     # 5.5 Rhythm Quantization
     from src.rhythm_quantizer import quantize_notes

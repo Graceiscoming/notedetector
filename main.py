@@ -70,8 +70,9 @@ def main():
 
     # --- Phase 3: Key Detection ---
     print("\n>>> PHASE 3: Key Detection")
-    # Detect key from the original audio
-    detected_key = detect_key(input_audio, config)
+    from src.key_detector import detect_keys_over_time
+    detected_keys = detect_keys_over_time(input_audio, config)
+    print(f"Detected key modulations: {[k['key'] for k in detected_keys]}")
 
     # --- Phase 4: Pitch Tracking ---
     print("\n>>> PHASE 4: Pitch Tracking")
@@ -82,7 +83,7 @@ def main():
 
     # --- Phase 5: Pitch Filtering & Snapping ---
     print("\n>>> PHASE 5: Pitch Filtering & Snapping")
-    filtered_notes = filter_and_snap_notes(raw_notes, detected_key, config)
+    filtered_notes = filter_and_snap_notes(raw_notes, detected_keys, config)
     print(f"After filtering: {len(filtered_notes)} notes.")
     
     # --- Phase 5.5: Rhythm Quantization ---

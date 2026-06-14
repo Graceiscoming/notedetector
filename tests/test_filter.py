@@ -15,7 +15,8 @@ def test_filtering():
         return
         
     # 1. Detect Key
-    key = detect_key(audio_path, config)
+    from src.key_detector import detect_keys_over_time
+    keys = detect_keys_over_time(audio_path, config)
     
     # 2. Pitch Tracking
     result = track_pitch(audio_path, config, mode="poly")
@@ -23,7 +24,7 @@ def test_filtering():
     print(f"Before filtering: {len(notes)} notes")
     
     # 3. Filter and Snap
-    filtered_notes = filter_and_snap_notes(notes, key, config)
+    filtered_notes = filter_and_snap_notes(notes, keys, config)
     print(f"After filtering: {len(filtered_notes)} notes")
     
     # 4. Export
