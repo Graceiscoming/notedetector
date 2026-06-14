@@ -95,6 +95,10 @@ def run_pipeline(input_audio: str, stem_choice: str, song_dir: str):
     # 5. Filtering
     filtered_notes = filter_and_snap_notes(raw_notes, detected_key, config)
 
+    # 5.5 Rhythm Quantization
+    from src.rhythm_quantizer import quantize_notes
+    quantized_notes = quantize_notes(filtered_notes, input_audio, config)
+
     # 6. Export
     out_dir = os.path.join(song_dir, "output")
     os.makedirs(out_dir, exist_ok=True)
@@ -104,8 +108,8 @@ def run_pipeline(input_audio: str, stem_choice: str, song_dir: str):
     midi_output = os.path.join(out_dir, midi_filename)
     text_output = os.path.join(out_dir, text_filename)
     
-    export_to_midi(filtered_notes, midi_output)
-    export_to_text(filtered_notes, text_output)
+    export_to_midi(quantized_notes, midi_output)
+    export_to_text(quantized_notes, text_output)
     
     cleanup_vram()
     print("--- API PIPELINE END ---")

@@ -80,19 +80,25 @@ def main():
     raw_notes = tracking_result["notes"]
     print(f"Detected {len(raw_notes)} raw notes.")
 
-    # --- Phase 5: Pitch Snapping & Filtering ---
-    print("\n>>> PHASE 5: Pitch Snapping & Filtering")
+    # --- Phase 5: Pitch Filtering & Snapping ---
+    print("\n>>> PHASE 5: Pitch Filtering & Snapping")
     filtered_notes = filter_and_snap_notes(raw_notes, detected_key, config)
+    print(f"After filtering: {len(filtered_notes)} notes.")
+    
+    # --- Phase 5.5: Rhythm Quantization ---
+    print("\n>>> PHASE 5.5: Rhythm Quantization")
+    from src.rhythm_quantizer import quantize_notes
+    quantized_notes = quantize_notes(filtered_notes, input_audio, config)
 
-    # --- Phase 6: Export ---
-    print("\n>>> PHASE 6: Exporting")
+    # --- Phase 6: MIDI Export ---
+    print("\n>>> PHASE 6: MIDI Export")
     os.makedirs("output_midi", exist_ok=True)
     
-    midi_output = f"output_midi/{basename}_{stem_choice}_snapped.mid"
-    text_output = f"output_midi/{basename}_{stem_choice}_notes.txt"
+    midi_output_path = f"output_midi/{basename}_{stem_choice}_snapped.mid"
+    export_to_midi(quantized_notes, midi_output_path)
     
-    export_to_midi(filtered_notes, midi_output)
-    export_to_text(filtered_notes, text_output)
+    text_output_path = f"output_midi/{basename}_{stem_choice}_notes.txt"
+    export_to_text(quantized_notes, text_output_path)
     
     # Cleanup
     cleanup_vram()
