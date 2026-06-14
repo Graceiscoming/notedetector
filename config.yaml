@@ -1,0 +1,40 @@
+# -----------------------------------------------------
+# NoteDetector Configuration File
+# -----------------------------------------------------
+
+# 1. Hardware Settings
+hardware:
+  device: "cuda"          # "cuda" or "cpu"
+  vram_fraction: 0.85     # Maximum VRAM percentage to use
+
+# 2. Source Separation (F2)
+separation:
+  # Vocal separation
+  vocal_model: "BS-RoFormer"
+  
+  # Instrument/General separation
+  instrument_model: "htdemucs_ft" # MDX23C or Demucs v4
+
+# 3. Key Detection (F3)
+key_detection:
+  target_key: "AUTO"      # "AUTO" for ensemble detection, or specify e.g., "C_Major", "A_Minor"
+  methods:
+    - "krumhansl_schmuckler"
+    - "temperley"
+    - "chroma_energy"
+
+# 4. Pitch Tracking (F4)
+pitch_tracking:
+  monophonic:
+    model: "torchcrepe"
+    crepe_model: "full"
+    batch_size: 512       # Optimized for 8GB VRAM
+  polyphonic:
+    model: "piano_transcription_inference"
+
+# 5. Pitch Filtering & Snapping (F5)
+filtering:
+  min_duration_sec: 0.08  # Filter out notes shorter than this
+  merge_gap_sec: 0.05     # Merge notes of the same pitch closer than this
+  snap_tolerance_cents: 50 # If pitch is within this cents from key, snap it. Else, discard.
+  use_median_filter: true

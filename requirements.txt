@@ -1,0 +1,24 @@
+# PyTorch and related (For GPU support, it is recommended to install via: 
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121)
+torch
+torchaudio
+torchvision
+
+# Source Separation
+audio-separator[gpu]
+
+# Audio Processing & Feature Extraction
+soundfile
+librosa
+numpy
+scipy
+
+# Pitch Tracking (Monophonic & Polyphonic)
+torchcrepe
+piano_transcription_inference
+
+# MIDI Generation
+pretty_midi
+
+# Utility
+pyyaml
