@@ -22,3 +22,4 @@ pretty_midi
 
 # Utility
 pyyaml
+yt-dlp

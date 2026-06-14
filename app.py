@@ -145,3 +145,32 @@ async def process_audio(file: UploadFile = File(...), stem: str = Form(...), son
     except Exception as e:
         cleanup_vram() # Ensure cleanup on error
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/process_youtube")
+async def process_youtube_audio(youtube_url: str = Form(...), stem: str = Form(...), song_name: str = Form(...)):
+    if not youtube_url:
+        raise HTTPException(status_code=400, detail="No YouTube URL provided")
+        
+    # Create project directory
+    safe_song_name = "".join([c for c in song_name if c.isalpha() or c.isdigit() or c==' ']).rstrip().replace(" ", "_")
+    if not safe_song_name:
+        safe_song_name = "youtube_project"
+        
+    song_dir = f"projects/{safe_song_name}"
+    os.makedirs(song_dir, exist_ok=True)
+    
+    try:
+        # Download YouTube audio
+        from src.youtube_downloader import download_youtube_audio
+        file_path = download_youtube_audio(youtube_url, song_dir, file_name="downloaded_audio")
+        
+        # Run pipeline
+        midi_file, text_file = run_pipeline(file_path, stem, song_dir)
+        return {
+            "status": "success",
+            "midi_url": f"/download/{safe_song_name}/output/{midi_file}",
+            "text_url": f"/download/{safe_song_name}/output/{text_file}"
+        }
+    except Exception as e:
+        cleanup_vram() # Ensure cleanup on error
+        raise HTTPException(status_code=500, detail=str(e))

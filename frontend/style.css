@@ -169,6 +169,38 @@ select option {
     color: rgba(255, 255, 255, 0.3);
 }
 
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 20px 0;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.divider span {
+    padding: 0 10px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.youtube-area {
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.youtube-area label {
+    display: block;
+    margin-bottom: 8px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
 .hidden {
     display: none !important;
 }

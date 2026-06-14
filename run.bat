@@ -11,5 +11,5 @@ echo -^> http://127.0.0.1:8000
 echo.
 echo Press Ctrl+C to stop the server when you are done.
 echo.
-C:\Users\หลัก\AppData\Local\Programs\Python\Python310\python.exe -m uvicorn app:app
+"%USERPROFILE%\AppData\Local\Programs\Python\Python310\python.exe" -m uvicorn app:app
 pause
