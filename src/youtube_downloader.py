@@ -20,6 +20,7 @@ def download_youtube_audio(url, output_dir, file_name="youtube_audio"):
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
+        'extractor_args': {'youtube': {'player_client': ['android']}},
         'outtmpl': output_template,
         'quiet': False,
         'no_warnings': True,
