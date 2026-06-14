@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.venv
+venv/
+venv.bak/
+
+# Audio and Large Model Data
+piano_transcription_inference_data/
+*.mp3
+*.wav
+*.flac
+*.ogg
+
+# Project Specific Working Directories
+temp_separated/
+output_midi/
+
+# Ignored Input Audio (except if you want to keep a sample)
+input_audio/*
+!input_audio/.gitkeep
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
