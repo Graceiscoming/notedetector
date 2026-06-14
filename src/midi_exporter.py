@@ -41,8 +41,13 @@ def export_to_text(notes_data, output_path):
     PITCH_CLASSES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
     
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write("Start(s)\tEnd(s)\tNote\n")
-        f.write("-" * 30 + "\n")
+        f.write("Start(s)\tEnd(s)\tNote\tWord\n")
+        f.write("-" * 40 + "\n")
+        
+        phrases = []
+        current_phrase_words = []
+        current_phrase_notes = []
+        last_end_time = -1
         
         for note_info in notes_data:
             if note_info['pitch'] <= 0 or np.isnan(note_info['pitch']):
@@ -55,8 +60,32 @@ def export_to_text(notes_data, output_path):
             
             start = round(note_info['start'], 2)
             end = round(note_info['end'], 2)
+            word = note_info.get("word", "-")
             
-            f.write(f"{start:.2f}\t\t{end:.2f}\t\t{note_name}\n")
+            f.write(f"{start:.2f}\t\t{end:.2f}\t\t{note_name}\t\t{word}\n")
+            
+            # Phrase summary logic
+            if word != "-":
+                if last_end_time != -1 and (start - last_end_time > 1.0):
+                    if current_phrase_words:
+                        phrases.append(("".join(current_phrase_words), current_phrase_notes.copy()))
+                    current_phrase_words = []
+                    current_phrase_notes = []
+                    
+                current_phrase_words.append(word)
+                current_phrase_notes.append(note_name)
+                last_end_time = end
+                
+        if current_phrase_words:
+            phrases.append(("".join(current_phrase_words), current_phrase_notes.copy()))
+            
+        f.write("\n" + "=" * 50 + "\n")
+        f.write("สรุปโน้ตแยกตามท่อนร้อง (Phrase Summary)\n")
+        f.write("=" * 50 + "\n\n")
+        
+        for p_text, p_notes in phrases:
+            notes_str = ", ".join(p_notes)
+            f.write(f"{p_text} : {notes_str}\n")
             
     print(f"[F6] Text Notes successfully saved to {output_path}")
 

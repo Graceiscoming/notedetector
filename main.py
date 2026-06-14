@@ -74,10 +74,17 @@ def main():
     detected_keys = detect_keys_over_time(input_audio, config)
     print(f"Detected key modulations: {[k['key'] for k in detected_keys]}")
 
-    # --- Phase 4: Pitch Tracking ---
-    print("\n>>> PHASE 4: Pitch Tracking")
+    # --- Phase 4: Extract Lyrics (For Vocals) ---
+    print("\n>>> PHASE 4: Extract Lyrics")
+    words = None
+    if stem_choice == "Vocals":
+        from src.lyrics_aligner import extract_lyrics
+        words = extract_lyrics(target_stem_path, config)
+        
+    # --- Phase 5: Pitch Tracking ---
+    print("\n>>> PHASE 5: Pitch Tracking")
     tracking_mode = "mono" if stem_choice in ["Vocals", "Bass"] else "poly"
-    tracking_result = track_pitch(target_stem_path, config, mode=tracking_mode)
+    tracking_result = track_pitch(target_stem_path, config, mode=tracking_mode, words=words)
     raw_notes = tracking_result["notes"]
     print(f"Detected {len(raw_notes)} raw notes.")
 
@@ -86,20 +93,20 @@ def main():
     filtered_notes = filter_and_snap_notes(raw_notes, detected_keys, config)
     print(f"After filtering: {len(filtered_notes)} notes.")
     
-    # --- Phase 5.5: Rhythm Quantization ---
-    print("\n>>> PHASE 5.5: Rhythm Quantization")
+    # --- Phase 7: Rhythm Quantization ---
+    print("\n>>> PHASE 7: Rhythm Quantization")
     from src.rhythm_quantizer import quantize_notes
-    quantized_notes = quantize_notes(filtered_notes, input_audio, config)
+    final_notes = quantize_notes(filtered_notes, input_audio, config)
 
     # --- Phase 6: MIDI Export ---
     print("\n>>> PHASE 6: MIDI Export")
     os.makedirs("output_midi", exist_ok=True)
     
     midi_output_path = f"output_midi/{basename}_{stem_choice}_snapped.mid"
-    export_to_midi(quantized_notes, midi_output_path)
+    export_to_midi(final_notes, midi_output_path)
     
     text_output_path = f"output_midi/{basename}_{stem_choice}_notes.txt"
-    export_to_text(quantized_notes, text_output_path)
+    export_to_text(final_notes, text_output_path)
     
     # Cleanup
     cleanup_vram()

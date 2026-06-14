@@ -47,11 +47,9 @@ def quantize_notes(notes, audio_path, config):
         if q_end <= q_start:
             q_end = q_start + grid_step_duration
             
-        quantized_notes.append({
-            "start": float(q_start),
-            "end": float(q_end),
-            "pitch": note["pitch"],
-            "velocity": note["velocity"]
-        })
+        new_note = note.copy()
+        new_note["start"] = float(q_start)
+        new_note["end"] = float(q_end)
+        quantized_notes.append(new_note)
         
     return quantized_notes

@@ -7,7 +7,7 @@ Mode B (Poly): piano_transcription_inference
 import torch
 import numpy as np
 
-def track_pitch_mono(audio_path, config):
+def track_pitch_mono(audio_path, config, words=None):
     import torchcrepe
     import scipy.signal
     import librosa
@@ -20,7 +20,9 @@ def track_pitch_mono(audio_path, config):
     batch_size = config.get("pitch_tracking", {}).get("monophonic", {}).get("batch_size", 512)
     model = config.get("pitch_tracking", {}).get("monophonic", {}).get("crepe_model", "full")
     
-    if audio.dim() == 1:
+    if audio.dim() > 1:
+        audio = audio.mean(dim=0, keepdim=True)
+    elif audio.dim() == 1:
         audio = audio.unsqueeze(0)
         
     print(f"[F4] Running Torchcrepe ({model}) on {device} (Mono Mode)...")
@@ -42,47 +44,94 @@ def track_pitch_mono(audio_path, config):
     # 1. Convert Hz to MIDI floats
     midi_floats = librosa.hz_to_midi(pitch_np)
     
-    # 2. Smooth Vibrato using Median Filter
-    # 11 frames = 110ms smoothing window
-    midi_smoothed = scipy.signal.medfilt(midi_floats, kernel_size=11)
-    
-    # 3. Apply periodicity threshold to drop unvoiced frames
-    confidence_thresh = 0.4
+    # 2. Apply periodicity threshold to drop unvoiced frames
+    # High confidence threshold to prevent false positives (D#2 from 50Hz fmin)
+    confidence_thresh = 0.8
     voiced_mask = periodicity_np > confidence_thresh
-    midi_smoothed[~voiced_mask] = np.nan
+    midi_floats[~voiced_mask] = np.nan
     
-    # 4. Group into Note Events
+    # 3. Group into Note Events
     notes = []
-    current_note = None
     frame_duration = 10 / 1000.0 # 10ms
     
-    for i, midi_val in enumerate(midi_smoothed):
-        if np.isnan(midi_val):
-            if current_note is not None:
-                current_note["end"] = i * frame_duration
-                notes.append(current_note)
-                current_note = None
-        else:
-            rounded_pitch = int(round(midi_val))
-            if current_note is None:
-                current_note = {
-                    "start": i * frame_duration,
-                    "pitch": rounded_pitch,
-                    "velocity": 80
-                }
-            elif current_note["pitch"] != rounded_pitch:
-                current_note["end"] = i * frame_duration
-                notes.append(current_note)
-                current_note = {
-                    "start": i * frame_duration,
-                    "pitch": rounded_pitch,
-                    "velocity": 80
-                }
-                
-    if current_note is not None:
-        current_note["end"] = len(midi_smoothed) * frame_duration
-        notes.append(current_note)
+    if words is not None and len(words) > 0:
+        print(f"[F4] Lyrics-Driven Tracking enabled for {len(words)} words.")
+        used_frames = np.zeros(len(midi_floats), dtype=bool)
         
+        for w in words:
+            start_frame = int(w["start"] / frame_duration)
+            end_frame = int(w["end"] / frame_duration)
+            start_frame = max(0, start_frame)
+            end_frame = min(len(midi_floats) - 1, end_frame)
+            
+            if start_frame > end_frame:
+                continue
+                
+            word_pitches = midi_floats[start_frame:end_frame+1]
+            valid_pitches = word_pitches[~np.isnan(word_pitches)]
+            
+            if len(valid_pitches) > 0:
+                median_pitch = int(round(np.median(valid_pitches)))
+                
+                # Check if we can merge with the previous note
+                if len(notes) > 0 and notes[-1]["pitch"] == median_pitch and (w["start"] - notes[-1]["end"] < 0.2):
+                    # Merge notes and concat words
+                    notes[-1]["end"] = w["end"]
+                    notes[-1]["word"] += w["word"]
+                else:
+                    notes.append({
+                        "start": w["start"],
+                        "end": w["end"],
+                        "pitch": median_pitch,
+                        "velocity": 80,
+                        "word": w["word"]
+                    })
+                used_frames[start_frame:end_frame+1] = True
+                
+        current_hum = None
+        for i, midi_val in enumerate(midi_floats):
+            if used_frames[i] or np.isnan(midi_val):
+                if current_hum is not None:
+                    current_hum["end"] = i * frame_duration
+                    if current_hum["end"] - current_hum["start"] >= 0.1:
+                        notes.append(current_hum)
+                    current_hum = None
+            else:
+                rounded_pitch = int(round(midi_val))
+                if current_hum is None:
+                    current_hum = {"start": i * frame_duration, "pitch": rounded_pitch, "velocity": 80, "word": "-"}
+                elif current_hum["pitch"] != rounded_pitch:
+                    current_hum["end"] = i * frame_duration
+                    if current_hum["end"] - current_hum["start"] >= 0.1:
+                        notes.append(current_hum)
+                    current_hum = {"start": i * frame_duration, "pitch": rounded_pitch, "velocity": 80, "word": "-"}
+        if current_hum is not None:
+            current_hum["end"] = len(midi_floats) * frame_duration
+            if current_hum["end"] - current_hum["start"] >= 0.1:
+                notes.append(current_hum)
+                
+        notes.sort(key=lambda x: x["start"])
+        
+    else:
+        current_note = None
+        for i, midi_val in enumerate(midi_floats):
+            if np.isnan(midi_val):
+                if current_note is not None:
+                    current_note["end"] = i * frame_duration
+                    notes.append(current_note)
+                    current_note = None
+            else:
+                rounded_pitch = int(round(midi_val))
+                if current_note is None:
+                    current_note = {"start": i * frame_duration, "pitch": rounded_pitch, "velocity": 80, "word": "-"}
+                elif current_note["pitch"] != rounded_pitch:
+                    current_note["end"] = i * frame_duration
+                    notes.append(current_note)
+                    current_note = {"start": i * frame_duration, "pitch": rounded_pitch, "velocity": 80, "word": "-"}
+        if current_note is not None:
+            current_note["end"] = len(midi_floats) * frame_duration
+            notes.append(current_note)
+            
     return {"notes": notes, "type": "mono"}
 
 def track_pitch_poly(audio_path, config):
@@ -111,9 +160,8 @@ def track_pitch_poly(audio_path, config):
         
     return {"notes": notes, "type": "poly"}
 
-def track_pitch(audio_path, config, mode="mono"):
+def track_pitch(audio_path, config, mode="mono", words=None):
     if mode == "mono":
-        return track_pitch_mono(audio_path, config)
+        return track_pitch_mono(audio_path, config, words)
     else:
         return track_pitch_poly(audio_path, config)
-

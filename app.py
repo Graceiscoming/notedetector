@@ -87,17 +87,23 @@ def run_pipeline(input_audio: str, stem_choice: str, song_dir: str):
     # 3. Key Detection
     detected_keys = detect_keys_over_time(input_audio, config)
 
-    # 4. Pitch Tracking
+    # 4. Extract Lyrics (For Vocals)
+    words = None
+    if stem_choice == "Vocals":
+        from src.lyrics_aligner import extract_lyrics
+        words = extract_lyrics(target_stem_path, config)
+        
+    # 5. Pitch Tracking
     tracking_mode = "mono" if stem_choice in ["Vocals", "Bass"] else "poly"
-    tracking_result = track_pitch(target_stem_path, config, mode=tracking_mode)
+    tracking_result = track_pitch(target_stem_path, config, mode=tracking_mode, words=words)
     raw_notes = tracking_result["notes"]
 
     # 5. Filtering
     filtered_notes = filter_and_snap_notes(raw_notes, detected_keys, config)
 
-    # 5.5 Rhythm Quantization
+    # 7. Rhythm Quantization
     from src.rhythm_quantizer import quantize_notes
-    quantized_notes = quantize_notes(filtered_notes, input_audio, config)
+    final_notes = quantize_notes(filtered_notes, input_audio, config)
 
     # 6. Export
     out_dir = os.path.join(song_dir, "output")
@@ -108,8 +114,8 @@ def run_pipeline(input_audio: str, stem_choice: str, song_dir: str):
     midi_output = os.path.join(out_dir, midi_filename)
     text_output = os.path.join(out_dir, text_filename)
     
-    export_to_midi(quantized_notes, midi_output)
-    export_to_text(quantized_notes, text_output)
+    export_to_midi(final_notes, midi_output)
+    export_to_text(final_notes, text_output)
     
     cleanup_vram()
     print("--- API PIPELINE END ---")

@@ -92,12 +92,8 @@ def filter_and_snap_notes(notes_data, detected_keys, config):
         if snapped_pitch != original_pitch:
             snapped_count += 1
             
-        new_note = {
-            "start": note['start'],
-            "end": note['end'],
-            "pitch": snapped_pitch,
-            "velocity": note['velocity']
-        }
+        new_note = note.copy()
+        new_note["pitch"] = snapped_pitch
         filtered_notes.append(new_note)
         
     print(f"[F5] Filtering complete: Snapped {snapped_count} notes, removed {filtered_count} short notes.")
