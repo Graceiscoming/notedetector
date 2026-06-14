@@ -9,7 +9,10 @@ import numpy as np
 
 def track_pitch_mono(audio_path, config):
     import torchcrepe
+    import scipy.signal
+    import librosa
     from src.audio_ingest import load_and_resample
+    
     # torchcrepe requires 16000 Hz
     audio, sr = load_and_resample(audio_path, target_sr=16000)
     device = audio.device
@@ -35,9 +38,52 @@ def track_pitch_mono(audio_path, config):
     
     pitch_np = pitch.squeeze(0).cpu().numpy()
     periodicity_np = periodicity.squeeze(0).cpu().numpy()
-    times = np.arange(pitch_np.shape[0]) * (10 / 1000.0)
     
-    return {"times": times, "pitches": pitch_np, "confidence": periodicity_np, "type": "mono"}
+    # 1. Convert Hz to MIDI floats
+    midi_floats = librosa.hz_to_midi(pitch_np)
+    
+    # 2. Smooth Vibrato using Median Filter
+    # 11 frames = 110ms smoothing window
+    midi_smoothed = scipy.signal.medfilt(midi_floats, kernel_size=11)
+    
+    # 3. Apply periodicity threshold to drop unvoiced frames
+    confidence_thresh = 0.4
+    voiced_mask = periodicity_np > confidence_thresh
+    midi_smoothed[~voiced_mask] = np.nan
+    
+    # 4. Group into Note Events
+    notes = []
+    current_note = None
+    frame_duration = 10 / 1000.0 # 10ms
+    
+    for i, midi_val in enumerate(midi_smoothed):
+        if np.isnan(midi_val):
+            if current_note is not None:
+                current_note["end"] = i * frame_duration
+                notes.append(current_note)
+                current_note = None
+        else:
+            rounded_pitch = int(round(midi_val))
+            if current_note is None:
+                current_note = {
+                    "start": i * frame_duration,
+                    "pitch": rounded_pitch,
+                    "velocity": 80
+                }
+            elif current_note["pitch"] != rounded_pitch:
+                current_note["end"] = i * frame_duration
+                notes.append(current_note)
+                current_note = {
+                    "start": i * frame_duration,
+                    "pitch": rounded_pitch,
+                    "velocity": 80
+                }
+                
+    if current_note is not None:
+        current_note["end"] = len(midi_smoothed) * frame_duration
+        notes.append(current_note)
+        
+    return {"notes": notes, "type": "mono"}
 
 def track_pitch_poly(audio_path, config):
     from piano_transcription_inference import PianoTranscription, sample_rate

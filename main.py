@@ -75,9 +75,8 @@ def main():
 
     # --- Phase 4: Pitch Tracking ---
     print("\n>>> PHASE 4: Pitch Tracking")
-    # Using poly mode by default for robust transcription
-    mode = "poly" 
-    tracking_result = track_pitch(target_stem_path, config, mode=mode)
+    tracking_mode = "mono" if stem_choice in ["Vocals", "Bass"] else "poly"
+    tracking_result = track_pitch(target_stem_path, config, mode=tracking_mode)
     raw_notes = tracking_result["notes"]
     print(f"Detected {len(raw_notes)} raw notes.")
 

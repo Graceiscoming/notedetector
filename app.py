@@ -88,7 +88,8 @@ def run_pipeline(input_audio: str, stem_choice: str, song_dir: str):
     detected_key = detect_key(input_audio, config)
 
     # 4. Pitch Tracking
-    tracking_result = track_pitch(target_stem_path, config, mode="poly")
+    tracking_mode = "mono" if stem_choice in ["Vocals", "Bass"] else "poly"
+    tracking_result = track_pitch(target_stem_path, config, mode=tracking_mode)
     raw_notes = tracking_result["notes"]
 
     # 5. Filtering
